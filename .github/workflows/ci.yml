@@ -1,0 +1,238 @@
+# Nimbus
+# Copyright (c) 2026 Status Research & Development GmbH
+# Licensed under either of
+#  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE) or
+#    http://www.apache.org/licenses/LICENSE-2.0)
+#  * MIT license ([LICENSE-MIT](LICENSE-MIT) or
+#    http://opensource.org/licenses/MIT)
+# at your option. This file may not be copied, modified, or distributed except
+# according to those terms.
+
+# Builds the guest from the nimbus-eth1 commit in versions.env, executes it over
+# the committed fixtures, and on a v* tag drafts a pre-release carrying the ELF
+# and its verification key.
+#
+
+name: CI
+
+on:
+  push:
+    branches:
+      - master
+    # GitHub skips path filters for tag pushes, so a release always builds.
+    tags:
+      - 'v*'
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build the guest (${{ matrix.zkvm }})
+    runs-on: ubuntu-22.04
+    timeout-minutes: 120
+
+    strategy:
+      fail-fast: false
+      matrix:
+        zkvm: [zisk]
+
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Read the versions
+        run: cat versions.env ${{ matrix.zkvm }}/versions.env | grep -E "^[A-Z0-9_]+=" >> "$GITHUB_ENV"
+
+      - name: Check out nimbus-eth1 at the pinned revision
+        run: make -C ${{ matrix.zkvm }} nimbus
+
+      - name: Cache the riscv toolchain
+        uses: actions/cache@v5
+        id: gcc
+        with:
+          path: build/tools/xpack-gcc-${{ env.XPACK_GCC_VERSION }}
+          key: xpack-gcc-${{ env.XPACK_GCC_VERSION }}
+
+      - name: Install the riscv toolchain
+        if: steps.gcc.outputs.cache-hit != 'true'
+        run: |
+          out=build/tools/xpack-gcc-$XPACK_GCC_VERSION
+          base=https://github.com/xpack-dev-tools/riscv-none-elf-gcc-xpack/releases/download/v$XPACK_GCC_VERSION
+          archive=xpack-riscv-none-elf-gcc-$XPACK_GCC_VERSION-linux-x64.tar.gz
+          rm -rf "$out" && mkdir -p "$out"
+          curl -sSL --proto '=https' --tlsv1.2 -O "$base/$archive" -O "$base/$archive.sha"
+          sha256sum -c "$archive.sha"
+          tar -xzf "$archive" -C "$out" --strip-components=1
+
+      - name: Cache the zkVM platform archive
+        uses: actions/cache@v5
+        with:
+          path: build/zisk-${{ env.ZISK_REF }}
+          key: zisk-staticlib-${{ env.ZISK_REF }}
+
+      - name: Install the nightly Rust toolchain
+        run: rustup toolchain install ${{ env.RUST_NIGHTLY }} --component rust-src
+
+      - name: Nim build-system commit
+        id: nbs
+        working-directory: build/nimbus
+        run: echo "hash=$(git rev-parse HEAD:vendor/nimbus-build-system)" >> "$GITHUB_OUTPUT"
+
+      - name: Cache prebuilt Nim
+        uses: actions/cache@v5
+        with:
+          path: build/nimbus/NimBinCache
+          key: nim-ubuntu-22.04-amd64-${{ steps.nbs.outputs.hash }}
+
+      - name: Build
+        run: |
+          make guest_${{ matrix.zkvm }} \
+            ZKVM_GCC="$PWD/build/tools/xpack-gcc-$XPACK_GCC_VERSION/bin/riscv-none-elf-gcc"
+
+      - name: Upload the guest ELF
+        uses: actions/upload-artifact@v7
+        with:
+          name: guest-${{ matrix.zkvm }}
+          path: build/artifacts/*
+          if-no-files-found: error
+          retention-days: 14
+
+  test:
+    name: Execute the guest (${{ matrix.zkvm }})
+    needs: build
+    runs-on: ubuntu-22.04
+    timeout-minutes: 60
+
+    strategy:
+      fail-fast: false
+      matrix:
+        zkvm: [zisk]
+
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Read the versions
+        run: cat versions.env ${{ matrix.zkvm }}/versions.env | grep -E "^[A-Z0-9_]+=" >> "$GITHUB_ENV"
+
+      - name: Download the guest ELF
+        uses: actions/download-artifact@v8
+        with:
+          name: guest-${{ matrix.zkvm }}
+          path: build/artifacts
+
+      # `ldd ziskemu` wants libsodium.so.23, libomp.so.5 and libmpi.so.40
+      - name: Install the emulator's dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq \
+            libsodium23 libomp5 libopenmpi3 openmpi-bin openmpi-common jq
+
+      # One file out of the release tarball, `ziskup` would also bring a Rust
+      # toolchain.
+      - name: Install the emulator
+        run: |
+          mkdir -p build/tools/bin
+          curl -sSL --proto '=https' --tlsv1.2 \
+            "https://github.com/0xPolygonHermez/zisk/releases/download/$ZISK_REF/cargo_zisk_linux_amd64.tar.gz" \
+            | tar -xz -C build/tools ./bin/ziskemu
+
+      - name: Execute over the committed fixtures
+        run: make test_${{ matrix.zkvm }} ZISK_EMULATOR="$PWD/build/tools/bin/ziskemu"
+
+  release:
+    name: Draft the pre-release
+    needs: [build, test]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-22.04
+    timeout-minutes: 60
+
+    permissions:
+      contents: write
+
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Read the versions
+        run: cat versions.env */versions.env | grep -E "^[A-Z0-9_]+=" >> "$GITHUB_ENV"
+
+      - name: Free up disk space
+        run: .github/scripts/free-up-disk-space.sh
+
+      - name: Download the guest ELFs
+        uses: actions/download-artifact@v8
+        with:
+          pattern: guest-*
+          path: build/artifacts
+          merge-multiple: true
+
+      # cargo-zisk wants GNU OpenMP rather than LLVM's and its assembly step
+      # links GMP with a host compiler.
+      - name: Install the prover's dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq \
+            libsodium23 libomp5 libopenmpi3 openmpi-bin openmpi-common \
+            libgomp1 build-essential libgmp-dev
+
+      # ziskup installs the prover and its 3.7 GB proving key into ~/.zisk,
+      # where cargo-zisk looks for them.
+      - name: Install the prover
+        run: |
+          export ZISK_VERSION="${ZISK_REF#v}" SETUP_KEY=proving-no-consttree USE_GPU=false
+          curl -sSf "https://raw.githubusercontent.com/0xPolygonHermez/zisk/$ZISK_REF/ziskup/ziskup" | bash
+
+      - name: Generate the verification keys
+        run: make vk ZISK_PROVER="$HOME/.zisk/bin/cargo-zisk-dev"
+
+      - name: Write the release notes
+        run: |
+          # sha256 is what ere-guests pins, sha512 what nimbus-eth1 publishes.
+          {
+            echo "Nimbus stateless guest program, built from nimbus-eth1 ${NIMBUS_REF}."
+            echo
+            echo '### SHA256 checksums'
+            echo
+            echo '```'
+            (cd build/artifacts && sha256sum ./*)
+            echo '```'
+            echo
+            echo '### SHA512 checksums'
+            echo
+            echo '```'
+            (cd build/artifacts && sha512sum ./*)
+            echo '```'
+          } > notes.md
+          cat notes.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Create the pre-release draft
+        uses: softprops/action-gh-release@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          draft: true
+          prerelease: true
+          tag_name: ${{ github.ref_name }}
+          name: ${{ github.ref_name }}
+          body_path: notes.md
+          files: build/artifacts/*
