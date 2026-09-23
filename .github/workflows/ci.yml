@@ -192,12 +192,14 @@ jobs:
             libsodium23 libomp5 libopenmpi3 openmpi-bin openmpi-common \
             libgomp1 build-essential libgmp-dev
 
-      # ziskup installs the prover and its 3.7 GB proving key into ~/.zisk,
-      # where cargo-zisk looks for them.
+      # ZISK_DIR puts the prover and its 3.7 GB proving key in $HOME/.zisk, where
+      # the prover reads them; ziskup would default to $XDG_CONFIG_HOME/.zisk.
       - name: Install the prover
         run: |
           export ZISK_VERSION="${ZISK_REF#v}" SETUP_KEY=proving-no-consttree USE_GPU=false
+          export ZISK_DIR="$HOME/.zisk"
           curl -sSf "https://raw.githubusercontent.com/0xPolygonHermez/zisk/$ZISK_REF/ziskup/ziskup" | bash
+          test -x "$ZISK_DIR/bin/cargo-zisk-dev" || { ls -la "$ZISK_DIR/bin"; exit 1; }
 
       - name: Generate the verification keys
         run: make vk ZISK_PROVER="$HOME/.zisk/bin/cargo-zisk-dev"
