@@ -169,6 +169,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
 
       - name: Read the versions
         run: cat versions.env */versions.env | grep -E "^[A-Z0-9_]+=" >> "$GITHUB_ENV"
@@ -206,9 +208,32 @@ jobs:
 
       - name: Write the release notes
         run: |
+          prev_tag=$(git describe --tags --abbrev=0 --match 'v*' "${GITHUB_REF_NAME}^" 2>/dev/null || true)
+          prev_ref=$(git show "$prev_tag:versions.env" 2>/dev/null | sed -n 's/^NIMBUS_REF=//p' || true)
+          if [ -n "$prev_tag" ] && [ -z "$prev_ref" ]; then
+            echo "note: $prev_tag has no NIMBUS_REF, writing the notes without a changelog" >&2
+          fi
+
+          if [ -n "$prev_ref" ]; then
+            changelog=$(.github/scripts/stateless-changelog.sh "$prev_ref" "$NIMBUS_REF") ||
+              changelog="Could not read the nimbus-eth1 history; see the comparison below."
+            [ -n "$changelog" ] ||
+              changelog="No changes specific to the stateless guest."
+          fi
+
           # sha256 is what ere-guests pins, sha512 what nimbus-eth1 publishes.
           {
             echo "Nimbus stateless guest program, built from nimbus-eth1 ${NIMBUS_REF}."
+            if [ -n "$prev_ref" ]; then
+              echo
+              echo "### Stateless guest changes since ${prev_tag}"
+              echo
+              echo "$changelog"
+              echo
+              echo "The guest also compiles the EVM, the ledger and the tries. For the full"
+              echo "set of changes in this ELF, see"
+              echo "[the comparison](${NIMBUS_REPO}/compare/${prev_ref}...${NIMBUS_REF})."
+            fi
             echo
             echo '### SHA256 checksums'
             echo
