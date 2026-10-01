@@ -6,7 +6,7 @@
 # at your option. This file may not be copied, modified, or distributed except according to those terms.
 #
 # The fixtures beside this file are copied out of fixtures_zkevm.tar.gz of
-# https://github.com/ethereum/execution-specs/releases/tag/tests-zkevm@v0.8.4.
+# https://github.com/ethereum/execution-specs/releases/tag/tests-zkevm@v21.0.1.
 # The guest takes bare bytes in and writes bare bytes out, so each fixture is
 # unpacked into the input to feed it and the output to expect back.
 
