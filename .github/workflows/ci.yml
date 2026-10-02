@@ -209,16 +209,22 @@ jobs:
       - name: Write the release notes
         run: |
           prev_tag=$(git describe --tags --abbrev=0 --match 'v*' "${GITHUB_REF_NAME}^" 2>/dev/null || true)
-          prev_ref=$(git show "$prev_tag:versions.env" 2>/dev/null | sed -n 's/^NIMBUS_REF=//p' || true)
-          if [ -n "$prev_tag" ] && [ -z "$prev_ref" ]; then
-            echo "note: $prev_tag has no NIMBUS_REF, writing the notes without a changelog" >&2
+          prev_ref=
+          if [ -n "$prev_tag" ]; then
+            prev_ref=$(git show "$prev_tag:versions.env" 2>/dev/null | sed -n 's/^NIMBUS_REF=//p' || true)
+            [ -n "$prev_ref" ] ||
+              echo "note: $prev_tag has no NIMBUS_REF, writing the notes without a changelog" >&2
           fi
 
-          if [ -n "$prev_ref" ]; then
-            changelog=$(.github/scripts/stateless-changelog.sh "$prev_ref" "$NIMBUS_REF") ||
-              changelog="Could not read the nimbus-eth1 history; see the comparison below."
-            [ -n "$changelog" ] ||
-              changelog="No changes specific to the stateless guest."
+          if [ -n "$prev_ref" ] && [ "$prev_ref" != "$NIMBUS_REF" ]; then
+            nimbus_changelog=$(.github/scripts/stateless-changelog.sh "$prev_ref" "$NIMBUS_REF") ||
+              nimbus_changelog="Could not read the nimbus-eth1 history; see the comparison below."
+            [ -n "$nimbus_changelog" ] ||
+              nimbus_changelog="No changes specific to the stateless guest."
+          fi
+
+          if [ -n "$prev_tag" ]; then
+            repo_changelog=$(git log --reverse --format='- %s' "$prev_tag..$GITHUB_REF_NAME")
           fi
 
           # sha256 is what ere-guests pins, sha512 what nimbus-eth1 publishes.
@@ -228,11 +234,19 @@ jobs:
               echo
               echo "### Stateless guest changes since ${prev_tag}"
               echo
-              echo "$changelog"
+              if [ "$prev_ref" = "$NIMBUS_REF" ]; then
+                echo "None."
+              else
+                echo "$nimbus_changelog"
+                echo
+                echo "The guest also compiles the EVM, the ledger and the tries. For the full set of changes in this ELF, see [the comparison](${NIMBUS_REPO}/compare/${prev_ref}...${NIMBUS_REF})."
+              fi
+            fi
+            if [ -n "$repo_changelog" ]; then
               echo
-              echo "The guest also compiles the EVM, the ledger and the tries. For the full"
-              echo "set of changes in this ELF, see"
-              echo "[the comparison](${NIMBUS_REPO}/compare/${prev_ref}...${NIMBUS_REF})."
+              echo "### Build changes since ${prev_tag}"
+              echo
+              echo "$repo_changelog"
             fi
             echo
             echo '### SHA256 checksums'
