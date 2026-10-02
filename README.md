@@ -10,7 +10,7 @@ per zkVM, derives the verification key and publishes both.
 
 | zkVM | Version | Status |
 |---|---|---|
-| [ZisK](https://github.com/0xPolygonHermez/zisk) | `v1.1.0-alpha` | Working |
+| [ZisK](https://github.com/0xPolygonHermez/zisk) | `v1.2.0-alpha` | Working |
 | [SP1](https://github.com/succinctlabs/sp1) | - | Not supported yet |
 | [OpenVM](https://github.com/openvm-org/openvm) | - | Not supported yet |
 
@@ -45,8 +45,8 @@ proving key, which `vk` needs and `test` does not. `ziskup` also installs a Rust
 toolchain nothing here uses:
 
 ```bash
-export ZISK_VERSION=1.1.0-alpha SETUP_KEY=proving-no-consttree USE_GPU=false
-curl -sSf https://raw.githubusercontent.com/0xPolygonHermez/zisk/v1.1.0-alpha/ziskup/ziskup | bash
+export ZISK_VERSION=1.2.0-alpha SETUP_KEY=proving-no-consttree USE_GPU=false
+curl -sSf https://raw.githubusercontent.com/0xPolygonHermez/zisk/v1.2.0-alpha/ziskup/ziskup | bash
 ```
 
 Their shared libraries. On Ubuntu, for `test`:
