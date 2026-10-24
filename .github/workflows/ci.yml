@@ -38,7 +38,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        zkvm: [zisk]
+        zkvm: [zisk, sp1]
 
     defaults:
       run:
@@ -72,13 +72,15 @@ jobs:
           sha256sum -c "$archive.sha"
           tar -xzf "$archive" -C "$out" --strip-components=1
 
-      - name: Cache the zkVM platform archive
+      - name: Cache the ZisK platform archive
+        if: matrix.zkvm == 'zisk'
         uses: actions/cache@v5
         with:
           path: build/zisk-${{ env.ZISK_REF }}
           key: zisk-staticlib-${{ env.ZISK_REF }}
 
       - name: Install the nightly Rust toolchain
+        if: matrix.zkvm == 'zisk'
         run: rustup toolchain install ${{ env.RUST_NIGHTLY }} --component rust-src
 
       - name: Nim build-system commit
@@ -114,7 +116,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        zkvm: [zisk]
+        zkvm: [zisk, sp1]
 
     defaults:
       run:
@@ -135,6 +137,7 @@ jobs:
 
       # `ldd ziskemu` wants libsodium.so.23, libomp.so.5 and libmpi.so.40
       - name: Install the emulator's dependencies
+        if: matrix.zkvm == 'zisk'
         run: |
           sudo apt-get update -qq
           sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq \
@@ -143,11 +146,23 @@ jobs:
       # One file out of the release tarball, `ziskup` would also bring a Rust
       # toolchain.
       - name: Install the emulator
+        if: matrix.zkvm == 'zisk'
         run: |
           mkdir -p build/tools/bin
           curl -sSL --proto '=https' --tlsv1.2 \
             "https://github.com/0xPolygonHermez/zisk/releases/download/$ZISK_REF/cargo_zisk_linux_amd64.tar.gz" \
             | tar -xz -C build/tools ./bin/ziskemu
+
+      # SP1 ships no executor binary, `make test` builds sp1/execute.
+      - name: Cache the SP1 executor
+        if: matrix.zkvm == 'sp1'
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            build/sp1-execute
+          key: sp1-execute-${{ env.SP1_REF }}-${{ hashFiles('sp1/execute/**') }}
 
       - name: Execute over the committed fixtures
         run: make test_${{ matrix.zkvm }} ZISK_EMULATOR="$PWD/build/tools/bin/ziskemu"
@@ -187,7 +202,7 @@ jobs:
 
       # cargo-zisk wants GNU OpenMP rather than LLVM's and its assembly step
       # links GMP with a host compiler.
-      - name: Install the prover's dependencies
+      - name: Install the ZisK prover's dependencies
         run: |
           sudo apt-get update -qq
           sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq \
@@ -196,15 +211,26 @@ jobs:
 
       # ZISK_DIR puts the prover and its 3.7 GB proving key in $HOME/.zisk, where
       # the prover reads them; ziskup would default to $XDG_CONFIG_HOME/.zisk.
-      - name: Install the prover
+      - name: Install the ZisK prover
         run: |
           export ZISK_VERSION="${ZISK_REF#v}" SETUP_KEY=proving-no-consttree USE_GPU=false
           export ZISK_DIR="$HOME/.zisk"
           curl -sSf "https://raw.githubusercontent.com/0xPolygonHermez/zisk/$ZISK_REF/ziskup/ziskup" | bash
           test -x "$ZISK_DIR/bin/cargo-zisk-dev" || { ls -la "$ZISK_DIR/bin"; exit 1; }
 
+      # The one binary in the release tarball, statically linked. `sp1up` would
+      # also bring SP1's Rust toolchain.
+      - name: Install the SP1 prover
+        run: |
+          mkdir -p build/tools/bin
+          curl -sSL --proto '=https' --tlsv1.2 \
+            "$SP1_REPO/releases/download/$SP1_REF/cargo_prove_${SP1_REF}_linux_amd64.tar.gz" \
+            | tar -xz -C build/tools/bin cargo-prove
+
       - name: Generate the verification keys
-        run: make vk ZISK_PROVER="$HOME/.zisk/bin/cargo-zisk-dev"
+        run: |
+          make vk ZISK_PROVER="$HOME/.zisk/bin/cargo-zisk-dev" \
+            SP1_CARGO_PROVE="$PWD/build/tools/bin/cargo-prove"
 
       - name: Write the release notes
         run: |
