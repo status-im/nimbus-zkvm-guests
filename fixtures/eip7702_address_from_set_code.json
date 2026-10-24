@@ -533,7 +533,7 @@
             "comment": "`execution-specs` generated test",
             "filling-transition-tool": "2.19.0",
             "description": "Test the address opcode in a set-code transaction.",
-            "url": "https://github.com/ethereum/execution-specs/blob/3ebcb5d02126918eb2aad599b3cf286200d4f458/tests/prague/eip7702_set_code_tx/test_set_code_txs.py#L1003",
+            "url": "https://github.com/ethereum/execution-specs/blob/59c1473ddfba341babaeca1c97a50e996f639a0b/tests/prague/eip7702_set_code_tx/test_set_code_txs.py#L1003",
             "metadata": {
                 "opcode_count": {
                     "CALLER": 6,
