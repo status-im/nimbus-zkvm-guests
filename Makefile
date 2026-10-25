@@ -10,9 +10,9 @@
 # make test_zisk       execute it over the committed fixtures
 # make vk_zisk         derive its verification key
 #
-# The real work lives in the per-zkVM directories; the targets below are
-# shorthand for `make -C <zkvm> <goal>`.
-ZKVMS := zisk
+# The real work lives in the per-zkVM directories, on top of guest.mk; the
+# targets below are shorthand for `make -C <zkvm> <goal>`.
+ZKVMS := zisk sp1
 
 # Not .PHONY below: make skips pattern rules for phony targets.
 .PHONY: all guests test vk clean help

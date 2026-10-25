@@ -1,0 +1,17 @@
+[package]
+name = "sp1-execute"
+version = "0.1.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+publish = false
+
+# Executes a guest ELF the way Ere does, no proving:
+#
+#   sp1-execute <guest.elf> <input.bin> <output.bin>
+
+[dependencies]
+# SP1_REF is a placeholder the Makefile replaces. A git tag, as the crates.io
+# releases take their sp1-* deps by caret.
+sp1-core-executor = { git = "https://github.com/succinctlabs/sp1", tag = "SP1_REF" }
+
+[workspace]
