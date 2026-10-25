@@ -41,13 +41,12 @@ archive:
 rustup toolchain install nightly-2026-09-20 --component rust-src
 ```
 
-The emulator and prover, into `~/.zisk`. `SETUP_KEY` fetches the 3.7 GB proving
-key, which `vk` needs and `test` does not. `ziskup` also installs a Rust
-toolchain nothing here uses:
+The emulator and prover, into `~/.zisk`. `SETUP_KEY` fetches the proving key,
+which `vk` needs; `--blake3` because Ere verifies blake3 VKs:
 
 ```bash
 export ZISK_VERSION=1.3.2-alpha SETUP_KEY=proving-no-consttree USE_GPU=false
-curl -sSf https://raw.githubusercontent.com/0xPolygonHermez/zisk/v1.3.2-alpha/ziskup/ziskup | bash
+curl -sSf https://raw.githubusercontent.com/0xPolygonHermez/zisk/v1.3.2-alpha/ziskup/ziskup | bash -s -- --blake3
 ```
 
 Their shared libraries. On Ubuntu, for `test`:
