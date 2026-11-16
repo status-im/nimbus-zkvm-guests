@@ -13,7 +13,7 @@
 #
 #   stateless-changelog.sh <base-ref> <head-ref>
 #
-# A commit counts as stateless if its subject starts with `stateless:`
+# A commit counts as stateless if its subject mentions `stateless`
 #
 
 set -euo pipefail
@@ -28,5 +28,8 @@ trap 'rm -rf "$dir"' EXIT
 git init -q "$dir"
 git -C "$dir" fetch -q --filter=tree:0 "$repo" "$base" "$head"
 
-git -C "$dir" log --format='%s' --grep='^stateless:' -i "$base..$head" |
+# Filter on the subject, `git log --grep` would also match the body. An empty
+# list is not an error.
+git -C "$dir" log --format='%s' "$base..$head" |
+  { grep -i 'stateless' || true; } |
   sed -E "s|^(.*) \(#([0-9]+)\)\$|- \1 ([#\2]($repo/pull/\2))|; t; s|^|- |"
