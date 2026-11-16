@@ -10,7 +10,7 @@ per zkVM, derives the verification key and publishes both.
 
 | zkVM | Version | Status |
 |---|---|---|
-| [ZisK](https://github.com/0xPolygonHermez/zisk) | `v1.3.2-alpha` | Working |
+| [ZisK](https://github.com/0xPolygonHermez/zisk) | `v1.4.0-alpha` | Working |
 | [SP1](https://github.com/succinctlabs/sp1) | `v6.9.0` | Working |
 | [OpenVM](https://github.com/openvm-org/openvm) | - | Not supported yet |
 
@@ -45,8 +45,8 @@ The emulator and prover, into `~/.zisk`. `SETUP_KEY` fetches the proving key,
 which `vk` needs; `--blake3` because Ere verifies blake3 VKs:
 
 ```bash
-export ZISK_VERSION=1.3.2-alpha SETUP_KEY=proving-no-consttree USE_GPU=false
-curl -sSf https://raw.githubusercontent.com/0xPolygonHermez/zisk/v1.3.2-alpha/ziskup/ziskup | bash -s -- --blake3
+export ZISK_VERSION=1.4.0-alpha SETUP_KEY=proving-no-consttree USE_GPU=false
+curl -sSf https://raw.githubusercontent.com/0xPolygonHermez/zisk/v1.4.0-alpha/ziskup/ziskup | bash -s -- --blake3
 ```
 
 Their shared libraries. On Ubuntu, for `test`:
